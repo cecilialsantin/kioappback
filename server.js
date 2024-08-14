@@ -4,12 +4,15 @@ const path = require('path');
 const app = express();
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const { authenticateToken, authenticateRole } = require('./middlewares/authMiddleware');
+const chatsRoutes = require('./routes/chatsRoutes')
+
+
 require('dotenv').config();
 const { sequelize } = require('./data');
 
 // Middleware para parsear JSON
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Configurar CORS
 const corsOptions = {
@@ -24,8 +27,11 @@ app.use(cors(corsOptions));
 /// Rutas de autenticación
 app.use('/api/auth', authRoutes);
 
-// Rutas de gestión de usuarios (solo accesibles para superusuarios)
+// Rutas de gestión de usuarios 
 app.use('/api/users', userRoutes);
+
+// Rutas para la gestion de chats
+app.use('/api/chats', chatsRoutes);
 
 // Servir archivos estáticos para las imágenes
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -40,3 +46,17 @@ sequelize.sync({ alter: true }).then(() => {
 }).catch((err) => {
   console.error('Error sincronizando la base de datos:', err);
 });
+
+// Iniciar NGROK
+
+/*const { exec } = require('child_process');
+const subdomain = process.env.NGROK_SUBDOMAIN;
+
+exec(`ngrok http --subdomain=${subdomain} 3000`, (err, stdout, stderr) => {
+  if (err) {
+    console.error(`Error iniciando ngrok: ${err.message}`);
+    return;
+  }
+  console.log(`ngrok iniciado: ${stdout}`);
+});*/
+
