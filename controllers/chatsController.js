@@ -1,13 +1,17 @@
 const { Chat, Contact } = require('../data');
 const { processWhatsAppMessage, verifyWhatsAppWebhookService } = require('../services/whatsappService');
+const { io } = require('../server');
 
-// Recibir mensajes de WhatsApp
 const receiveWhatsAppMessage = async (req, res) => {
   try {
     const { body } = req;
-    console.log('Webhook received:', body); // Agrega este log para ver qué estás recibiendo
+    console.log('Webhook received:', body);
     
     const result = await processWhatsAppMessage(body);
+    
+    // Emitir el evento para notificar a los clientes conectados
+    io.emit('newMessage', result);
+
     res.status(201).json(result);
   } catch (error) {
     console.error('Error receiving WhatsApp message:', error);
@@ -19,6 +23,7 @@ const receiveWhatsAppMessage = async (req, res) => {
 const verifyWhatsAppWebhook = (req, res) => {
   verifyWhatsAppWebhookService(req, res);
 };
+
 
 // Recibir estado de mensajes de WhatsApp
 const receiveWhatsAppStatus = async (req, res) => {
@@ -41,6 +46,7 @@ const receiveWhatsAppStatus = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
 
 // Crear un nuevo chat
 const createChat = async (req, res) => {

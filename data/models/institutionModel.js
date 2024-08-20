@@ -16,7 +16,7 @@ module.exports = (sequelize, DataTypes) => {
       customerCode: {
         type: DataTypes.STRING,
         allowNull: true,
-        unique: true
+        unique: false
       }
     });
   

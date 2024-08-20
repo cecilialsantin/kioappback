@@ -31,6 +31,6 @@ module.exports = (sequelize, DataTypes) => {
     return Equipment;
   };
   
-  //Asociar el equipo a la institucion
+
 
   

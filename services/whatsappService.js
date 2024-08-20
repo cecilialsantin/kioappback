@@ -5,7 +5,7 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
 
-const processWhatsAppMessage = async (body) => {
+/*const processWhatsAppMessage = async (body) => {
   console.log('Webhook received:', body); // Esto te mostrará todo el cuerpo del mensaje recibido
   try {
     // Usar los campos correctos del cuerpo del webhook
@@ -30,12 +30,66 @@ const processWhatsAppMessage = async (body) => {
       status: 'open'
     });
 
+    // Emitir el evento de nuevo mensaje usando socket.io
+    const io = require('../server').io;
+    io.emit('newMessage', newChat);
+    //console.log('Nuevo mensaje emitido a través de Socket.IO:', newChat); // Log para verificar la emisión
+
+
     return newChat;
   } catch (error) {
     console.error('Error processing WhatsApp message:', error);
     throw new Error('Internal server error');
   }
+};*/ 
+
+const processWhatsAppMessage = async (body) => {
+  console.log('Webhook received:', body);
+  try {
+    const contactPhoneNumber = body.WaId || body.From.replace('whatsapp:', '');
+    const messageContent = body.Body || '';
+    const mediaType = body.MessageType || 'text';
+    const mediaUrl = body.MediaUrl0 || null;
+
+    let contact = await Contact.findOne({ where: { phoneNumber: contactPhoneNumber } });
+    if (!contact) {
+      contact = await Contact.create({ phoneNumber: contactPhoneNumber, name: body.ProfileName });
+    }
+
+    // Buscar un chat abierto existente para este contacto
+    let chat = await Chat.findOne({
+      where: {
+        contactId: contact.id,
+        status: 'open'
+      }
+    });
+
+    if (!chat) {
+      // Si no existe un chat abierto, crear uno nuevo
+      chat = await Chat.create({
+        message: messageContent,
+        mediaType,
+        mediaUrl,
+        contactId: contact.id,
+        status: 'open'
+      });
+    } else {
+      // Si existe un chat abierto, agregar la respuesta al mismo chat
+      chat.message += `\n${messageContent}`;
+      if (mediaUrl) {
+        chat.mediaUrl = mediaUrl;
+        chat.mediaType = mediaType;
+      }
+      await chat.save();
+    }
+
+    return chat;
+  } catch (error) {
+    console.error('Error processing WhatsApp message:', error);
+    throw new Error('Internal server error');
+  }
 };
+
 
 const sendWhatsAppMessage = async (to, message) => {
   try {
