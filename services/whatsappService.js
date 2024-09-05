@@ -1,47 +1,9 @@
 const { Chat, Contact } = require('../data');
 const twilio = require('twilio');
-
+const { v4: uuidv4 } = require('uuid');  // Usaremos uuid para generar ticketID único
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
-
-/*const processWhatsAppMessage = async (body) => {
-  console.log('Webhook received:', body); // Esto te mostrará todo el cuerpo del mensaje recibido
-  try {
-    // Usar los campos correctos del cuerpo del webhook
-    const contactPhoneNumber = body.WaId || body.From.replace('whatsapp:', ''); // Usar WaId o From
-    const messageContent = body.Body || ''; // Usar el campo Body para el contenido del mensaje
-    const mediaType = body.MessageType || 'text'; // El tipo de mensaje está en MessageType
-    const mediaUrl = body.MediaUrl0 || null; // Esto dependerá de cómo llegue la media
-
-    // Verificar si el contacto ya existe
-    let contact = await Contact.findOne({ where: { phoneNumber: contactPhoneNumber } });
-    if (!contact) {
-      // Crear un nuevo contacto si no existe
-      contact = await Contact.create({ phoneNumber: contactPhoneNumber, name: body.ProfileName });
-    }
-
-    // Crear un nuevo chat con la información recibida
-    const newChat = await Chat.create({
-      message: messageContent,
-      mediaType,
-      mediaUrl,
-      contactId: contact.id,
-      status: 'open'
-    });
-
-    // Emitir el evento de nuevo mensaje usando socket.io
-    const io = require('../server').io;
-    io.emit('newMessage', newChat);
-    //console.log('Nuevo mensaje emitido a través de Socket.IO:', newChat); // Log para verificar la emisión
-
-
-    return newChat;
-  } catch (error) {
-    console.error('Error processing WhatsApp message:', error);
-    throw new Error('Internal server error');
-  }
-};*/ 
 
 const processWhatsAppMessage = async (body) => {
   console.log('Webhook received:', body);
@@ -57,47 +19,55 @@ const processWhatsAppMessage = async (body) => {
     }
 
     // Buscar un chat abierto existente para este contacto
-    let chat = await Chat.findOne({
+    let openChat = await Chat.findOne({
       where: {
         contactId: contact.id,
         status: 'open'
       }
     });
 
-    if (!chat) {
-      // Si no existe un chat abierto, crear uno nuevo
-      chat = await Chat.create({
-        message: messageContent,
-        mediaType,
-        mediaUrl,
-        contactId: contact.id,
-        status: 'open'
-      });
-    } else {
-      // Si existe un chat abierto, agregar la respuesta al mismo chat
-      chat.message += `\n${messageContent}`;
-      if (mediaUrl) {
-        chat.mediaUrl = mediaUrl;
-        chat.mediaType = mediaType;
-      }
-      await chat.save();
-    }
+    let ticketID = openChat ? openChat.ticketID : uuidv4(); // Si hay un chat abierto, usamos su ticketID, si no, generamos uno nuevo
 
-    return chat;
+    // Crear un nuevo mensaje en la base de datos con el ticketID
+    const newMessage = await Chat.create({
+      message: messageContent,
+      mediaType,
+      mediaUrl,
+      contactId: contact.id,
+      ticketID,  // Asignamos el ticketID al mensaje
+      status: 'open',
+      isSentByUser: false,  // Indicar que el mensaje fue recibido desde WhatsApp
+    });
+
+    return newMessage;
+
   } catch (error) {
     console.error('Error processing WhatsApp message:', error);
     throw new Error('Internal server error');
   }
 };
 
-
-const sendWhatsAppMessage = async (to, message) => {
+const sendWhatsAppMessage = async (to, message, mediaUrl = null) => {
   try {
-    const response = await client.messages.create({
+
+    console.log('Enviando mensaje a Twilio:', to, message); // Log para ver cuántas veces se llama esta función
+    // Asegúrate de que el número de destino (to) esté en el formato correcto
+    const formattedTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+
+    const messageData = {
       body: message,
-      from: process.env.TWILIO_WHATSAPP_NUMBER,
-      to: `whatsapp:${to}`
-    });
+      from: process.env.TWILIO_WHATSAPP_NUMBER,  // Asegúrate de que este número esté correctamente configurado en tu archivo .env con el prefijo 'whatsapp:'
+      to: formattedTo,  // Usa el número de destino formateado con 'whatsapp:'
+    };
+
+    if (mediaUrl) {
+      messageData.mediaUrl = mediaUrl; // Agrega la URL del medio si está presente
+    }
+
+    // Enviar el mensaje usando la API de Twilio
+    const response = await client.messages.create(messageData);
+
+    // Devuelve la respuesta de Twilio sin crear un nuevo registro en la base de datos aquí
     return response;
   } catch (error) {
     console.error('Error sending WhatsApp message:', error);

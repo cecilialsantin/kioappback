@@ -24,8 +24,17 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true
       },
+      ticketID: {
+        type: DataTypes.UUID,  // Usaremos UUID para el ticketID
+        allowNull: false,
+      },
       isBotResponse: {
         type: DataTypes.BOOLEAN,
+        defaultValue: false
+      },
+      isSentByUser: {  
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
         defaultValue: false
       },
       status: {
